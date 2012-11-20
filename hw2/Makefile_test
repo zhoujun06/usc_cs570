@@ -1,0 +1,11 @@
+listtest: cpp_listtest.o my570list.o
+	g++ -o listtest -g cpp_listtest.o my570list.o
+
+cpp_listtest.o: cpp_listtest.cpp my570list.hpp
+	g++ -g -c -Wall -fpermissive cpp_listtest.cpp
+
+my570list.o: my570list.cpp my570list.hpp
+	g++ -g -c -Wall my570list.cpp
+
+clean:
+	rm -f *.o listtest

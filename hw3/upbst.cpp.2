@@ -1,0 +1,585 @@
+#include "bst.hpp"
+
+//#define HW_DEBUG
+
+extern bool g_display_all;
+extern bool g_is_avl;
+
+Bst::Bst(istream &input) : _root(NULL), _input(input) {}
+
+Bst::~Bst()
+{
+    clear(_root);
+}
+
+void Bst::doRun()
+{
+    if (FALSE == build()) {
+        return;
+    }
+
+    display();
+}
+
+int Bst::build()
+{
+    char line[MAX_LINE+2];
+    int num = 0;
+    _input.getline(line, sizeof(line));
+    while (_input.good()) 
+    {
+        num++;
+        if (strlen(line) > MAX_LINE)
+        {
+            cerr << "line too long, No: " << num << endl;
+            return -1;
+        }
+
+        char *str = trim(line);
+        Node *node = new Node(str);
+
+        insert(node);
+        if (g_display_all) {
+            if (num != 1) {
+                cout << endl;
+            }
+            cout << "Inserted \"" << str << "\" (node " << num << "):\n\n";
+            display();
+        }
+        _input.getline(line, sizeof(line));
+    }
+
+    if (!g_display_all) {
+        display();
+    }
+    return TRUE;
+}
+
+char *Bst::trim(char *str)
+{
+    if (str == NULL) {
+        return NULL;
+    }
+
+    char *head = str;
+    char *end = str + strlen(str)-1;
+    while (head != NULL && 
+        (*head == ' ' || *head == '\t' || *head == '\r'))
+    {
+        head++;
+    }
+
+    if (head == NULL) 
+    {
+        return NULL;
+    }
+
+    while (*end == ' ' || *end == '\t' || *end == '\r')
+    {
+        end--;
+    }
+
+    *(end+1) = '\0';
+
+    return head;
+}
+
+int Bst::insert(Node *node)
+{
+    if (_root == NULL) 
+    {
+        _root = node;
+        return TRUE;
+    }
+
+    Node *p = NULL;
+    int res = find(node->_data, p);
+    if (res == TRUE) {
+        cerr << "conflict key " << node->_data << endl;
+        exit(1);
+    }
+    //otherwise, p is the future parent of the node
+    node->_parent = p;
+    if (strcmp(p->_data, node->_data) > 0) {
+        p->_left = node;
+    } else {
+        p->_right = node;
+    }
+
+    if (g_is_avl) {
+        if (p->_balance != 0) {
+            //to this point, no rotation needed
+            p->_balance = 0;
+        } else {
+            bool done = rotate(node);
+            /*
+            //update p->_balance
+            //we update after rotation rather than before rotation,
+            //just for convinient for while loop in rotate function
+            if (p->_left == node) {
+                p->_balance = 1;
+            } else {
+                p->_balance = -1;
+            }
+
+
+            //if no rotation has performed, check if parent of p 
+            //is balanced. 
+            //what if rotation has done ? 
+            if (!done && p->_parent) {
+                if (p->_parent->_balance == 0) {
+                    if (p->_parent->_left == p) {
+                        p->_parent->_balance = 1;
+                    } else {
+                        p->_parent->_balance = -1;
+                    }
+                }
+            }
+            */
+        }
+    }
+    return TRUE;
+}
+
+bool Bst::rotate(Node * p)
+{
+    //four conditions to rotate
+    //rotateLL, RR, LR, RL
+    //from p, traverse upword, find the first unbalanced node
+    //in order to juedge which case, need to remember the last two step
+    vector<char> path;
+    Node *node = p;
+    Node *pp = node->_parent;
+    bool found = true;
+    bool bk = false;
+
+    while (pp) {
+        if (pp->_balance != 0) {
+            bk = true;
+        }
+
+        if (pp->_left == p) {
+            path.push_back('l');
+            pp->_balance += 1;
+        } else {
+            path.push_back('r');
+            pp->_balance -= 1;
+        }
+
+        if (bk) {
+            break;
+        } else {
+            p = pp;
+            pp = pp->_parent;
+        }
+    }
+   
+    if (bk == false) {
+        return false;
+    }
+
+    size_t size = path.size();
+    if (found && size >= 2) {
+        if (path[size-1] == 'l') {
+            if (path[size-2] == 'l') {
+                rotateLL(pp);
+            } else if (path[size-2] == 'r') {
+                rotateLR(pp);
+            }
+        } else if (path[size-1] == 'r') {
+            if (path[size-2] == 'r') {
+                rotateRR(pp);
+            } else if (path[size-2] == 'l') {
+                rotateRL(pp);
+            }
+        }
+        return true;
+    } else {
+        //won't rotate, need to update some balance
+        /*
+        if (pp->_left == node) {
+            pp->_balance = 1;
+        } else {
+            pp->_balance = -1;
+        }
+
+        if (pp->_parent) {
+            if (pp->_parent->_left == pp) {
+                pp->_parent->_balance += 1;
+            } else {
+                pp->_parent->_balance -= 1;
+            }
+        }
+        */
+    }
+
+    return false;
+}
+
+int Bst::find(char *str, Node * &p)
+{
+    return itnFind(_root, str, p);
+}
+
+int Bst::itnFind(Node *root, char *str, Node * &p)
+{
+    if (root == NULL) {
+        return FALSE;
+    }
+
+    if (strcmp(root->_data, str) == 0) {
+        p = root;
+        return TRUE;
+    } else if (strcmp(root->_data, str) > 0) {
+        if (root->_left != NULL) {
+            return itnFind(root->_left, str, p);
+        } else {
+            p = root;
+            return FALSE;
+        }
+    } else if (strcmp(root->_data, str) < 0) {
+        if (root->_right != NULL) {
+            return itnFind(root->_right, str, p);
+        } else {
+            p = root;
+            return FALSE;
+        }
+    }
+
+    return FALSE;
+}
+
+void Bst::display()
+{
+    uint64_t bits = 0;
+    int level = 0;
+    if (NULL == _root) {
+        cout << "(EMPTY)" << endl;
+        return;
+    }
+    _root->nodeDisplay(bits, level);
+}
+
+void Node::printPre(uint64_t bits, int level)
+{
+    if (level <= 0) {
+        return;
+    }
+
+    cout << ' ';
+    for (int i=1; i<level; i++) {
+        if (bits & 1<<i) {
+            //at this level, it is the right child
+            cout << "     ";
+        } else {
+            cout << "|    ";
+        }
+    }
+}
+
+void Node::nodeDisplay(uint64_t bits, int level)
+{
+    printPre(bits, level);
+
+    if (level != 0) {
+        if (bits & 1<<level) {
+            cout << "\\-- ";
+        } else {
+            cout << "+-- ";
+        } 
+    }
+
+    cout << _data;
+    if (g_is_avl) {
+        char c = '\0';
+        switch (_balance) {
+            case 0:
+                c = 'E';
+                break;
+            case 1:
+                c = 'L';
+                break;
+            case -1:
+                c = 'R';
+                break;
+        }
+        cout << " (" << c << ")";
+    }
+#ifdef HW_DEBUG
+    if (_parent) {
+        cout << _parent->_data;
+    }
+#endif
+    cout << endl;
+
+    if (_left == NULL) {
+        printPre(bits, level+1);
+        cout << "+-- NULL\n";
+    } else {
+        _left->nodeDisplay(bits, level+1);
+    }
+
+    if (_right == NULL) {
+        printPre(bits, level+1);
+        cout << "\\-- NULL\n";
+    } else {
+        bits = bits | 1<<(level+1);
+        _right->nodeDisplay(bits, level+1);
+    }
+}
+
+void Bst::clear(Node *root)
+{
+    if (root != NULL) {
+        clear(root->_left);
+        clear(root->_right);
+        delete root;
+        root = NULL;
+    }
+}
+
+void Bst::swap(Node *n1, Node *n2)
+{
+    char *str = n1->_data;
+    n1->_data = n2->_data;
+    n2->_data = str;
+}
+
+Node *Bst::getInOrder(Node *node)
+{
+    if (NULL == node) {
+        return NULL;
+    }
+
+    Node *p = node->_right;
+    while (p->_left) {
+        p = p->_left;
+    }
+
+    return p;
+}
+
+int Bst::del(char *str)
+{
+    if (NULL == str) {
+        cerr << "delete input null str\n";
+        exit(1);
+    }
+
+    Node *node = NULL;
+    if (FALSE == find(str, node)) {
+        cerr << "can't find when delete: " << str << endl;
+        exit(1);
+    }
+
+    if (node->_left != NULL && node->_right != NULL) {
+        //find inorder successor
+        Node *inorder = getInOrder(node);
+        swap(node, inorder);
+
+        if (inorder->_right)
+        {
+            inorder->_right->_parent = inorder->_parent;
+        }
+        if (inorder->_parent->_left == inorder) {
+            inorder->_parent->_left = inorder->_right;
+        } else {
+            inorder->_parent->_right = inorder->_right;
+        }
+
+        return TRUE;
+        
+    } else if (node->_left != NULL) {
+        node->_left->_parent = node->_parent;
+        if (node->_parent == NULL) {
+            //root 
+            _root = node->_left;
+        } else {
+            if (node->_parent->_left == node) {
+                node->_parent->_left = node->_left;
+            } else {
+                node->_parent->_right = node->_left;
+            }
+        }
+    } else if (node->_right != NULL){
+        node->_right->_parent = node->_parent;
+        if (node->_parent == NULL) {
+            //root
+            _root = node->_right;
+        } else {
+            if (node->_parent->_left == node) {
+                node->_parent->_left = node->_right;
+            } else {
+                node->_parent->_right = node->_right;
+            }
+        }
+    } else {
+        if (node->_parent == NULL) {
+            _root = node->_right;
+        } else {
+            //both left and right are NULL
+            if (node->_parent->_left == node) {
+                node->_parent->_left = NULL;
+            } else {
+                node->_parent->_right = NULL;
+            }
+        }
+
+    }
+
+    return TRUE;
+}
+
+/*
+ * all in left child
+ *         (A)
+ *        /
+ *       (B)    -->    (B)
+ *      /             /   \
+ *     (C)           (c)  (A)
+ */
+void Bst::rotateLL(Node * root)
+{
+    Node *lc = root->_left;
+    //update root.parent.left
+    if (root->_parent) {
+        if (strcmp(root->_data, root->_parent->_data) > 0) {
+            //root is the right child of its parent
+            root->_parent->_right = lc;
+        } else {
+            root->_parent->_left = lc;
+        }
+    } else {
+        _root = lc;
+    }
+
+    if (root->_parent)
+        root->_parent->_balance -= 1;
+
+    if (root->_right != NULL && lc->_right == NULL) {
+        //this case must be came from rotateLR
+        root->_balance -= 1;
+        lc->_balance -= 1;
+    }
+
+    if (root->_balance == 2) {
+        (root->_balance) -= 2;
+    } else {
+        (root->_balance) -= 1;
+    }
+    (lc->_balance)--;
+
+    lc->_parent = root->_parent;
+    root->_left = lc->_right;
+    if (root->_left) {
+        root->_left->_parent = root;
+    }
+    root->_parent = lc;
+    lc->_right = root;
+
+#ifdef HW_DEBUG
+    cout << "after rotateLL \n";
+    display();
+#endif
+}
+
+/*
+ * all in right child
+ *    (A)
+ *      \
+ *      (B)    -->    (B)
+ *        \          /   \
+ *        (C)       (A)  (C)
+ */
+void Bst::rotateRR(Node * root)
+{
+    Node *rc = root->_right;
+    //update root.parent.left
+    if (root->_parent) {
+        if (strcmp(root->_data, root->_parent->_data) > 0) {
+            //root is the right child of its parent
+            root->_parent->_right = root->_right;
+        } else {
+            root->_parent->_left = root->_right;
+        }
+    } else {
+        //root is _root of avl, then we update _root
+        _root = rc;
+    }
+/*  
+    if (rc->_left == NULL) {
+        root->_balance -= 3;
+        rc->_balance -= 2;
+    } else {
+        root->_balance -= 2;
+        rc->_balance -= 1;
+    }
+
+    if (root->_balance == -2) {
+        (root->_balance) += 2;
+    } else {
+        (root->_balance) += 1;
+    }
+    (rc->_balance)++;
+
+
+    */
+
+    if (root->_parent)
+        root->_parent->_balance += 1;
+
+    if (root->_left != NULL && rc->_left == NULL) {
+        //this case must be came from rotateRL
+        root->_balance += 1;
+        rc->_balance += 1;
+    }
+
+    if (root->_balance == -2) {
+        root->_balance += 2;
+    } else {
+        root->_balance += 1;
+    }
+    rc->_balance += 1;
+
+    rc->_parent = root->_parent;
+    root->_right = rc->_left;
+    if (root->_right) {
+        root->_right->_parent = root;
+    }
+    root->_parent = rc;
+    rc->_left = root;
+
+#ifdef HW_DEBUG
+    cout << "after rotateRR \n";
+    display();
+#endif
+}
+
+/*
+ * in left child then right child
+ *     (A)           (A)
+ *     /             /
+ *    (B)    -->    (C)  -->  (C)
+ *      \           /        /   \
+ *      (C)        (B)      (B)  (A)
+ */
+
+void Bst::rotateLR(Node * root)
+{
+    rotateRR(root->_left);
+    rotateLL(root);
+}
+
+/*
+ * in right child then left child
+ *    (A)         (A)
+ *      \           \
+ *     (B)    -->   (C)  -->  (C)
+ *     /              \      /   \
+ *   (C)              (B)   (A)  (B)
+ */
+void Bst::rotateRL(Node * root)
+{
+    rotateLL(root->_right);
+    rotateRR(root);
+}

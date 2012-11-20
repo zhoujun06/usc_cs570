@@ -1,0 +1,11 @@
+listtest: c_listtest.o my570list.o
+	gcc -o listtest -g c_listtest.o my570list.o
+
+c_listtest.o: c_listtest.c my570list.h
+	gcc -g -c -Wall c_listtest.c
+
+my570list.o: my570list.c my570list.h
+	gcc -g -c -Wall my570list.c
+
+clean:
+	rm -f *.o listtest
